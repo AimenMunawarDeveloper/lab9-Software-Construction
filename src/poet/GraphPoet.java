@@ -3,10 +3,10 @@
  */
 package poet;
 
-import java.io.File;
+import java.io.*;
 import java.io.IOException;
 
-import graph.Graph;
+import graph.ConcreteEdgesGraph;
 
 /**
  * A graph-based poetry generator.
@@ -52,14 +52,16 @@ import graph.Graph;
  */
 public class GraphPoet {
     
-    private final Graph<String> graph = Graph.empty();
+	private final ConcreteEdgesGraph graph = new ConcreteEdgesGraph();
+	 
+	// Abstraction function: 
+    //   Graph represents word relationships with weighted edges.
     
-    // Abstraction function:
-    //   TODO
-    // Representation invariant:
-    //   TODO
-    // Safety from rep exposure:
-    //   TODO
+    // Representation invariant: 
+    //   All words are non-null and non-empty; edge weights are positive.
+    
+    // Safety from rep exposure: 
+    //   Internal graph is hidden, accessed through controlled methods.
     
     /**
      * Create a new poet with the graph from corpus (as described above).
@@ -67,22 +69,85 @@ public class GraphPoet {
      * @param corpus text file from which to derive the poet's affinity graph
      * @throws IOException if the corpus file cannot be found or read
      */
-    public GraphPoet(File corpus) throws IOException {
-        throw new RuntimeException("not implemented");
-    }
-    
+	public GraphPoet(File corpusFile) throws IOException {
+	    try (BufferedReader fileReader = new BufferedReader(new FileReader(corpusFile))) {
+	        String currentLine;
+	        String previousWord = null;
+	        
+	        while ((currentLine = fileReader.readLine()) != null) {
+	            // Split the line into words
+	            for (String currentWord : currentLine.split("\\s+")) {
+	                currentWord = currentWord.toLowerCase().trim();
+	                
+	                if (!currentWord.isEmpty()) {
+	                    graph.add(currentWord);
+	                    // If there's a previous word, create or update the edge between previousWord and currentWord
+	                    if (previousWord != null) {
+	                        int edgeWeight = graph.set(previousWord, currentWord, graph.targets(previousWord).getOrDefault(currentWord, 0) + 1);
+	                    }
+	                    previousWord = currentWord;
+	                }
+	            }
+	        }
+	    }
+	    checkRep();
+	}
+
     // TODO checkRep
-    
+    private void checkRep() {
+        for (String vertex : graph.vertices()) {
+            assert vertex != null && !vertex.isEmpty();
+            for (int weight : graph.targets(vertex).values()) {
+                assert weight > 0;
+            }
+        }
+    }
     /**
      * Generate a poem.
      * 
      * @param input string from which to create the poem
      * @return poem (as described above)
      */
-    public String poem(String input) {
-        throw new RuntimeException("not implemented");
+    public String poem(String inputText) {
+        String[] wordList = inputText.split("\\s+");
+        StringBuilder poemBuilder = new StringBuilder();
+        
+        for (int index = 0; index < wordList.length - 1; index++) {
+            String firstWord = wordList[index].toLowerCase();
+            String secondWord = wordList[index + 1].toLowerCase();
+
+            String bestBridgeWord = null;
+            int highestWeight = 0;
+
+            // Look for the best bridge word between firstWord and secondWord
+            for (String potentialBridge : graph.targets(firstWord).keySet()) {
+                if (graph.targets(potentialBridge).containsKey(secondWord)) {
+                    // Calculate the total weight of the two-edge path (firstWord -> potentialBridge -> secondWord)
+                    int currentWeight = graph.targets(firstWord).get(potentialBridge) + graph.targets(potentialBridge).get(secondWord);
+                    if (currentWeight > highestWeight) {
+                        highestWeight = currentWeight;
+                        bestBridgeWord = potentialBridge;
+                    }
+                }
+            }
+
+            poemBuilder.append(wordList[index]).append(" ");
+            
+            // If a bridge word is found, append it to the poem
+            if (bestBridgeWord != null) {
+                poemBuilder.append(bestBridgeWord).append(" ");
+            }
+        }
+
+        // Append the last word without a bridge
+        poemBuilder.append(wordList[wordList.length - 1]);
+        return poemBuilder.toString();
     }
+
     
     // TODO toString()
-    
+    @Override
+    public String toString() {
+        return graph.toString();
+    }
 }
